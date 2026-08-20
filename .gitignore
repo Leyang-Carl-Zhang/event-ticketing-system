@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js and generated output
+.next/
+out/
+build/
+dist/
+app/generated/prisma/
+next-env.d.ts
+*.tsbuildinfo
+
+# Tests and logs
+coverage/
+*.log
+
+# Secrets and local data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.sqlite
+*.sqlite3
+*.db
+
+# Tooling and operating systems
+.vercel/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
