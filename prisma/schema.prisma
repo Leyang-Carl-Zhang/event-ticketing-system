@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ORGANIZER
+  STAFF
+  ATTENDEE
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum TicketStatus {
+  VALID
+  CHECKED_IN
+}
+
+enum FieldType {
+  TEXT
+  EMAIL
+  PHONE
+  NUMBER
+  SELECT
+  CHECKBOX
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  eventsOrganized  Event[]      @relation("EventOrganizer")
+  staffAssignments EventStaff[]
+  orders           Order[]
+  checkIns         CheckIn[]    @relation("CheckInStaff")
+  checkedTickets   Ticket[]     @relation("TicketCheckedInBy")
+}
+
+model Event {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  location      String?
+  startAt       DateTime
+  endAt         DateTime?
+  posterFileKey String?
+  posterUrl     String?
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organizer   User         @relation("EventOrganizer", fields: [createdById], references: [id], onDelete: Cascade)
+  staff       EventStaff[]
+  ticketTypes TicketType[]
+  orders      Order[]
+  formFields  FormField[]
+
+  @@index([createdById])
+  @@index([startAt])
+}
+
+model EventStaff {
+  id         String   @id @default(cuid())
+  eventId    String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model TicketType {
+  id            String   @id @default(cuid())
+  eventId       String
+  name          String
+  price         Decimal  @db.Decimal(10, 2)
+  quantityLimit Int
+  soldCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  event      Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  tickets    Ticket[]
+
+  @@index([eventId])
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  eventId   String
+  status    OrderStatus @default(PENDING)
+  paidAt    DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event               Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  orderItems          OrderItem[]
+  registrationAnswers RegistrationAnswer[]
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  ticketTypeId String
+  quantity     Int
+  unitPrice    Decimal @db.Decimal(10, 2)
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  tickets    Ticket[]
+
+  @@index([orderId])
+  @@index([ticketTypeId])
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  orderItemId   String
+  ticketTypeId  String
+  tokenHash     String       @unique
+  checkInCode   String?      @unique // Persistent code for QR display and check-in lookup (optional until backfilled)
+  attendeeName  String?
+  status        TicketStatus @default(VALID)
+  checkedInAt   DateTime?
+  checkedInById String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  orderItem   OrderItem  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  ticketType  TicketType @relation(fields: [ticketTypeId], references: [id], onDelete: Restrict)
+  checkIn     CheckIn?
+  checkedInBy User?      @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+
+  @@index([orderItemId])
+  @@index([ticketTypeId])
+}
+
+model CheckIn {
+  id            String   @id @default(cuid())
+  ticketId      String   @unique
+  checkedInById String
+  checkedInAt   DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  staff  User   @relation("CheckInStaff", fields: [checkedInById], references: [id], onDelete: Cascade)
+
+  @@index([checkedInById])
+  @@index([checkedInAt])
+}
+
+model FormField {
+  id        String    @id @default(cuid())
+  eventId   String
+  label     String
+  type      FieldType
+  required  Boolean   @default(false)
+  options   Json?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  event   Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  answers RegistrationAnswer[]
+
+  @@index([eventId])
+}
+
+model RegistrationAnswer {
+  id          String @id @default(cuid())
+  orderId     String
+  formFieldId String
+  value       String @db.Text
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  formField FormField @relation(fields: [formFieldId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, formFieldId])
+  @@index([orderId])
+  @@index([formFieldId])
+}
